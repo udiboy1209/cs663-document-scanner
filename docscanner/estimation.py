@@ -101,19 +101,33 @@ def homography_ransac(Xi1, Xi2, N, dist_thres):
     max_inliers = -1
     min_std = 10000
 
+    best_H = None
+    best_H_inliers = None
+
     for idx in choose_points(Xi1,N,0.1):
         p1 = Xi1[:,idx]
         p2 = Xi2[:,idx]
         Hp = normalised_DLT(p1,p2)
 
         Xi2_T = np.dot(Hp,Xi1)
+        Xi2_T = Xi2_T / Xi2_T[2][None,:]
         Xi1_T = np.dot(lin.inv(Hp),Xi2)
-
-        print(Xi1,Xi1_T)
+        Xi1_T = Xi1_T / Xi1_T[2][None,:]
 
         di = np.add(
                 np.sqrt(np.sum(np.square(np.subtract(Xi1_T,Xi1)),axis=0)),
                 np.sqrt(np.sum(np.square(np.subtract(Xi2_T,Xi2)),axis=0))
              )
 
-        print(di)
+        di_std = np.std(di)
+        inlier_idx = np.where(di < dist_thres)[0]
+
+        if inlier_idx.shape[0] > max_inliers or \
+           (inlier_idx.shape[0] == max_inliers and di_std < min_std):
+            best_H = Hp
+            best_H_inliers = inlier_idx
+            max_inliers = inlier_idx.shape[0]
+            min_std = di_std
+
+    H_final = normalised_DLT(Xi1[:,best_H_inliers],Xi2[:,best_H_inliers])
+    return best_H
