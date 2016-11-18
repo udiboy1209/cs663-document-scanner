@@ -87,6 +87,7 @@ def normalised_DLT(p1, p2):
     h_norm.shape = (3,3)
 
     H = np.dot(lin.inv(T2),np.dot(h_norm,T1))
+    H = np.divide(H,H[2,2])
 
     return H
 
@@ -98,36 +99,47 @@ def homography_ransac(Xi1, Xi2, N, dist_thres):
         N:              Number of iterations
         dist_thres:     Threshold distance for inliers
     '''
+    inlier_thres = int(Xi1.shape[1]*0.22 + 5.9)
+
     max_inliers = -1
     min_std = 10000
 
-    best_H = None
     best_H_inliers = None
+    H_found = False
 
     for idx in choose_points(Xi1,N,0.1):
-        p1 = Xi1[:,idx]
-        p2 = Xi2[:,idx]
-        Hp = normalised_DLT(p1,p2)
+        try:
+            p1 = Xi1[:,idx]
+            p2 = Xi2[:,idx]
+            Hp = normalised_DLT(p1,p2)
 
-        Xi2_T = np.dot(Hp,Xi1)
-        Xi2_T = Xi2_T / Xi2_T[2][None,:]
-        Xi1_T = np.dot(lin.inv(Hp),Xi2)
-        Xi1_T = Xi1_T / Xi1_T[2][None,:]
+            Xi2_T = np.dot(Hp,Xi1)
+            Xi2_T = Xi2_T / Xi2_T[2][None,:]
+            Xi1_T = np.dot(lin.inv(Hp),Xi2)
+            Xi1_T = Xi1_T / Xi1_T[2][None,:]
 
-        di = np.add(
-                np.sqrt(np.sum(np.square(np.subtract(Xi1_T,Xi1)),axis=0)),
-                np.sqrt(np.sum(np.square(np.subtract(Xi2_T,Xi2)),axis=0))
-             )
+            di = np.add(
+                    np.sqrt(np.sum(np.square(np.subtract(Xi1_T,Xi1)),axis=0)),
+                    np.sqrt(np.sum(np.square(np.subtract(Xi2_T,Xi2)),axis=0))
+                 )
 
-        di_std = np.std(di)
-        inlier_idx = np.where(di < dist_thres)[0]
+            di_std = np.std(di)
+            inlier_idx = np.where(di < dist_thres)[0]
 
-        if inlier_idx.shape[0] > max_inliers or \
-           (inlier_idx.shape[0] == max_inliers and di_std < min_std):
-            best_H = Hp
-            best_H_inliers = inlier_idx
-            max_inliers = inlier_idx.shape[0]
-            min_std = di_std
+            if inlier_idx.shape[0] >= inlier_thres and \
+               (inlier_idx.shape[0] > max_inliers or \
+               (inlier_idx.shape[0] == max_inliers and di_std < min_std)):
+                best_H_inliers = inlier_idx
+                max_inliers = inlier_idx.shape[0]
+                min_std = di_std
+                H_found = True
+        except lin.linalg.LinAlgError:
+            print("Got singular matrix")
 
+    if not H_found:
+        # No good matches found
+        return None
+
+    print("No. of inliers: %d" % len(best_H_inliers))
     H_final = normalised_DLT(Xi1[:,best_H_inliers],Xi2[:,best_H_inliers])
-    return best_H
+    return H_final
