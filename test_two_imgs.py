@@ -34,7 +34,7 @@ for i,m in enumerate(matches):
     Xi1[0:2,i] = np.matrix(kp1[m[0].queryIdx].pt)
     Xi2[0:2,i] = np.matrix(kp2[m[0].trainIdx].pt)
 
-h = homography_ransac(Xi1,Xi2,1000,5.5)
+h,_ = homography_ransac(Xi1,Xi2,1000,5.5)
 # h_cv,status = cv2.findHomography(np.transpose(Xi1[0:2,:]),np.transpose(Xi2[0:2,:]))
 
 if h.any():

@@ -98,6 +98,11 @@ def homography_ransac(Xi1, Xi2, N, dist_thres):
         Xi2:            Feature points in image 2
         N:              Number of iterations
         dist_thres:     Threshold distance for inliers
+
+    returns:
+        (H, inliers):
+            H:       Homography matrix such that H*Xi1 = Xi2
+            inliers: Index of all inliers used to create H
     '''
     inlier_thres = int(Xi1.shape[1]*0.22 + 5.9)
 
@@ -142,4 +147,4 @@ def homography_ransac(Xi1, Xi2, N, dist_thres):
 
     print("No. of inliers: %d" % len(best_H_inliers))
     H_final = normalised_DLT(Xi1[:,best_H_inliers],Xi2[:,best_H_inliers])
-    return H_final
+    return H_final, best_H_inliers
