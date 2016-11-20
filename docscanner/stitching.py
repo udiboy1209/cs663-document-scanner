@@ -4,8 +4,9 @@ from feature_matching import match_features, get_orb_features
 from estimation import homography_ransac
 from numpy import linalg as lin
 from scipy.ndimage.filters import gaussian_filter
+from scipy.optimize import least_squares
 import cv2
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
 from math import sqrt
 
 __all__ = ['get_connectivity_mat','merge_simple','merge_incremental']
@@ -21,8 +22,7 @@ def get_connectivity_mat(imgs, features):
     NUM_MATCHES_THRES = 70
 
     N = len(imgs)
-    H = [[] for i in range(N)]
-    inlier_idx = [[] for i in range(N)]
+    matches_list = [[] for i in range(N)]
 
     for i in xrange(N):
         kpi, desi = features[i]
@@ -42,12 +42,9 @@ def get_connectivity_mat(imgs, features):
                     Xj[0:2,k] = np.matrix(kpj[m[0].trainIdx].pt)
 
                 Hij,inliers = homography_ransac(Xi,Xj,1000,5)
-                H[i].append((j,Hij))
-                inlier_idx[i].append((j,inliers))
-                H[j].append((i,lin.inv(Hij)))
-                inlier_idx[j].append((i,inliers))
+                matches_list[i].append((j,Hij,Xi[:,inliers],Xj[:,inliers]))
 
-    return H,inlier_idx
+    return matches_list
 
 def multiband_blend(imgs, K, s):
     im_tmp = [i.copy() for i in imgs]
@@ -130,7 +127,7 @@ def merge_incremental(imgs, features):
     idx = range(1,8)
 
     # Guessing the shape for merged image
-    Lx,Ly = img.shape[1]*2,img.shape[0]*2
+    Lx,Ly = img.shape[1]*4,img.shape[0]*2
     merged_img = np.zeros((Ly,Lx),dtype='uint8')
 
     # Add first img to merged_img
@@ -151,9 +148,9 @@ def merge_incremental(imgs, features):
 
             if len(matches) > 50:
                 print("Merging img %d" % idx[i])
-                img3 = np.zeros(2)
-                img3 = cv2.drawMatchesKnn(merged_img,kpm,img,kpi,matches,img3,flags=2)
-                plt.imshow(img3),plt.show()
+                # img3 = np.zeros(2)
+                # img3 = cv2.drawMatchesKnn(merged_img,kpm,img,kpi,matches,img3,flags=2)
+                # plt.imshow(img3),plt.show()
 
                 Xm = np.ones((3,len(matches)))
                 Xi = np.ones((3,len(matches)))
@@ -188,3 +185,78 @@ def merge_incremental(imgs, features):
     merged_img = multiband_blend(warped_imgs,3,10)
 
     return merged_img
+
+def huber_robust_error(x,s=2):
+    L1norm = lin.norm(x)
+    L2norm = L1norm*L1norm
+
+    # print(x,L1norm,L2norm)
+    if L1norm < s:
+        return L2norm
+    else:
+        return 2*s*L1norm - s*s
+
+def error_fun(Harr, matches):
+    n = 0
+    r = np.empty(0)
+    # print("Harr \n",Harr)
+    for i,matlist in enumerate(matches):
+        for j,_,kp1,kp2 in matlist:
+            # Calculate 3x3 H matrix from slice of linear array
+            H = Harr[9*n:9*n+9]
+            H.shape = (3,3)
+
+            # Transform img2 keypoints to frame of img1
+            kp1_ = np.dot(lin.inv(H),kp2)
+
+            # print("KP1 \n",kp2)
+            # print("KP1' \n",kp2_)
+
+            # Sum of huber robust error for difference of each keypoint
+            # in img1 and transformed img2
+            # e += np.sum(np.apply_along_axis(huber_robust_error,1,kp2-kp2_))
+            residuals = kp1-kp1_
+            r = np.append(r,residuals[0:2,:].ravel())
+
+            n += 1
+
+    print("r \n",lin.norm(r))
+    return r
+
+def bundle_adjust(matches_list):
+    '''
+    Args:
+        matches_list: 2D-array of tuples (j,Hij,Mi,Mj) describing the matches
+                        j:   index of matched image
+                        Hij: Homography matrix of transform from i to j
+                        Mi:  Matched feature points of img i
+                        Mj:  Matched feature points of img j
+        kp: list of features of images
+    '''
+
+    # Linearise H
+    Hlin = np.empty(0)
+    for matches in matches_list:
+        for _,Hij,_,_ in matches:
+            H = Hij.copy()
+            H.shape = (1,9)
+            Hlin = np.append(Hlin,H)
+
+    # Least square optimise the H matrix
+    OptSoln = least_squares(error_fun,Hlin,method='lm',args=(matches_list,))
+    Hopt = OptSoln.x
+
+    # Recreate the connectivity list from the linear array solution
+    Hadjusted = []
+    n = 0
+    for matches in matches_list:
+        match = []
+        for j,_,_,_ in matches:
+            H = Hopt[9*n:9*n+9]
+            H.shape = (3,3)
+            match.append((j,H))
+            n += 1
+
+        Hadjusted.append(match)
+
+    return Hadjusted

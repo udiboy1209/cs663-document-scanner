@@ -1,4 +1,5 @@
-from docscanner.stitching import get_connectivity_mat, merge_incremental
+from docscanner.stitching import get_connectivity_mat, merge_simple, \
+                                 bundle_adjust
 from docscanner.feature_matching import get_orb_features
 
 import sys, os
@@ -17,6 +18,11 @@ features = [get_orb_features(img, 10000) for img in imgs]
 
 # Hi,inliers = get_connectivity_mat(imgs,features)
 
-merged_img = merge_incremental(imgs,features)
+# merged_img = merge_incremental(imgs,features)
 
-plt.imshow(merged_img,cmap='gray'),plt.show()
+matches_list = get_connectivity_mat(imgs, features)
+H_adjusted = bundle_adjust(matches_list)
+
+print(H_adjusted)
+img_merged = merge_simple(imgs,H_adjusted)
+plt.imshow(img_merged,cmap='gray'),plt.show()
