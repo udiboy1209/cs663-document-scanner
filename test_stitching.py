@@ -23,6 +23,22 @@ features = [get_orb_features(img, 10000) for img in imgs]
 matches_list = get_connectivity_mat(imgs, features)
 H_adjusted = bundle_adjust(matches_list)
 
-print(H_adjusted)
+horg = []
+for ml in matches_list:
+    for m in ml:
+        horg.append(m[1])
+hadj = []
+for ml in H_adjusted:
+    for m in ml:
+        hadj.append(m[1])
+
+print(horg)
+print(hadj)
+print([a-b for a,b in zip(horg,hadj)])
+
 img_merged = merge_simple(imgs,H_adjusted)
-plt.imshow(img_merged,cmap='gray'),plt.show()
+img_merged2 = merge_simple(imgs,matches_list)
+plt.figure(),plt.imshow(img_merged,cmap='gray'),
+plt.figure(),plt.imshow(img_merged2,cmap='gray')
+
+plt.show()

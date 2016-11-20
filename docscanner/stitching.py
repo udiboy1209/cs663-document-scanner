@@ -18,7 +18,7 @@ def get_connectivity_mat(imgs, features):
         features:   list of feature tuple (kp,des) for each image
     '''
 
-    MATCH_RATIO = 0.65
+    MATCH_RATIO = 0.70
     NUM_MATCHES_THRES = 70
 
     N = len(imgs)
@@ -108,6 +108,7 @@ def merge_simple(imgs,connectivity_mat):
         for c in connected:
             if not visited[c[0]] and c[0] not in que:
                 H = c[1]
+                H = H/H[2,2]
 
                 # Transform to 0 is "transform from i to 0" * "transform to i"
                 H_to_0[c[0]] = np.dot(Hinv,lin.inv(H))
@@ -203,11 +204,12 @@ def error_fun(Harr, matches):
     for i,matlist in enumerate(matches):
         for j,_,kp1,kp2 in matlist:
             # Calculate 3x3 H matrix from slice of linear array
-            H = Harr[9*n:9*n+9]
+            H = np.append(Harr[8*n:8*n+8],1)
             H.shape = (3,3)
+            H = H/H[2,2]
 
             # Transform img2 keypoints to frame of img1
-            kp1_ = np.dot(lin.inv(H),kp2)
+            kp2_ = np.dot(H,kp1)
 
             # print("KP1 \n",kp2)
             # print("KP1' \n",kp2_)
@@ -215,12 +217,15 @@ def error_fun(Harr, matches):
             # Sum of huber robust error for difference of each keypoint
             # in img1 and transformed img2
             # e += np.sum(np.apply_along_axis(huber_robust_error,1,kp2-kp2_))
-            residuals = kp1-kp1_
-            r = np.append(r,residuals[0:2,:].ravel())
+            residuals = kp2-kp2_
+            residuals = residuals/residuals[2][None,:]
+            r = np.append(r,residuals[0:2].ravel())
+            # huber = np.apply_along_axis(huber_robust_error,0,residuals[0:2,:])
+            # r = np.append(r,huber)
 
             n += 1
 
-    print("r \n",lin.norm(r))
+    print("r \n",np.sum(r))
     return r
 
 def bundle_adjust(matches_list):
@@ -240,7 +245,7 @@ def bundle_adjust(matches_list):
         for _,Hij,_,_ in matches:
             H = Hij.copy()
             H.shape = (1,9)
-            Hlin = np.append(Hlin,H)
+            Hlin = np.append(Hlin,H[0:8])
 
     # Least square optimise the H matrix
     OptSoln = least_squares(error_fun,Hlin,method='lm',args=(matches_list,))
@@ -252,7 +257,7 @@ def bundle_adjust(matches_list):
     for matches in matches_list:
         match = []
         for j,_,_,_ in matches:
-            H = Hopt[9*n:9*n+9]
+            H = np.append(Hopt[8*n:8*n+8],1)
             H.shape = (3,3)
             match.append((j,H))
             n += 1
