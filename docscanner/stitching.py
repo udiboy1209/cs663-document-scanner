@@ -18,11 +18,9 @@ def get_connectivity_mat(imgs, features):
     '''
 
     MATCH_RATIO = 0.65
-    NUM_MATCHES_THRES = 70
 
     N = len(imgs)
-    H = [[] for i in range(N)]
-    inlier_idx = [[] for i in range(N)]
+    matches_list = [[] for i in range(N)]
 
     for i in xrange(N):
         kpi, desi = features[i]
@@ -30,24 +28,21 @@ def get_connectivity_mat(imgs, features):
             kpj, desj = features[j]
             matches = match_features(desi,desj,MATCH_RATIO)
 
-            if len(matches) >= NUM_MATCHES_THRES:
-                # Matches are high enough, there are some common regions
+            print("%d matched with %d, no. of matches: %d" % (i,j, len(matches)))
+            img3 = np.zeros(2)
+            img3 = cv2.drawMatchesKnn(imgs[i],kpi,imgs[j],kpj,matches,img3,flags=2)
+            plt.imshow(img3),plt.show()
 
-                print("%d matched with %d" % (i,j))
+            Xi = np.ones((3,len(matches)))
+            Xj = np.ones((3,len(matches)))
+            for k,m in enumerate(matches):
+                Xi[0:2,k] = np.matrix(kpi[m[0].queryIdx].pt)
+                Xj[0:2,k] = np.matrix(kpj[m[0].trainIdx].pt)
 
-                Xi = np.ones((3,len(matches)))
-                Xj = np.ones((3,len(matches)))
-                for k,m in enumerate(matches):
-                    Xi[0:2,k] = np.matrix(kpi[m[0].queryIdx].pt)
-                    Xj[0:2,k] = np.matrix(kpj[m[0].trainIdx].pt)
+            Hij,inliers = homography_ransac(Xi,Xj,1000,5)
+            matches_list[i].append((j,Hij,Xi[:,inliers],Xj[:,inliers]))
 
-                Hij,inliers = homography_ransac(Xi,Xj,1000,5)
-                H[i].append((j,Hij))
-                inlier_idx[i].append((j,inliers))
-                H[j].append((i,lin.inv(Hij)))
-                inlier_idx[j].append((i,inliers))
-
-    return H,inlier_idx
+    return matches_list
 
 def multiband_blend(imgs, K, s):
     im_tmp = [i.copy() for i in imgs]
@@ -79,7 +74,7 @@ def merge_simple(imgs,connectivity_mat):
     N = len(imgs)
 
     # Guessing the shape for merged image
-    Lx,Ly = imgs[0].shape[1]*4,imgs[0].shape[0]*2
+    Lx,Ly = int(imgs[0].shape[1]*1.5),int(imgs[0].shape[0]*1.5)
     merged_img = np.zeros((Ly,Lx))
     num_vals = np.zeros((Ly,Lx))
     H_to_0 = [None for i in xrange(N)]
@@ -100,9 +95,26 @@ def merge_simple(imgs,connectivity_mat):
         img_warped = cv2.warpPerspective(img1,Hinv,(Lx,Ly))
 
         # Increment the count at each pixel which was added by this step
-        num_vals[img_warped > 0] += 1
+        # num_vals[img_warped > 0] += 1
+
+        # Do simple gain compensation
+        common_region = np.logical_and(img_warped>0, merged_img>0)
+        print("common: ",len(np.where(common_region)[1]))
+        if len(np.where(common_region)[1]) > 0:
+            avg_warped = np.sum(img_warped[common_region])
+            avg_merged = np.sum(merged_img[common_region])
+
+            print(avg_warped, avg_merged)
+
+            avg_exp = (avg_warped+avg_merged)/2
+            g_warped = avg_exp/avg_warped
+            g_merged = avg_exp/avg_merged
+
+            merged_img = np.multiply(merged_img,g_merged)
+            img_warped = np.multiply(img_warped,g_warped)
 
         # Add the warped img to the whole img
+        img_warped[common_region] = 0
         merged_img = np.add(merged_img,img_warped)
 
         visited[i] = True
