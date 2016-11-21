@@ -142,7 +142,7 @@ def homography_ransac(Xi1, Xi2, N, dist_thres):
             print("Got singular matrix")
 
     if not H_found:
-        # No good matches found
+        print("No good matches found!")
         return None
 
     print("No. of inliers: %d" % len(best_H_inliers))
