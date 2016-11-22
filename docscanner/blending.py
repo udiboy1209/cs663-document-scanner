@@ -26,6 +26,8 @@ def multiband_blend(imgs, K):
             L = cv2.subtract(Gp[i-1],GE)
             Lp.append(L)
 
+    del(Gp_all)
+
     # Calc merged pyramids at all levels
     Ls = []
     for i in xrange(K+1):
@@ -39,6 +41,8 @@ def multiband_blend(imgs, K):
             n += 1
 
         Ls.append(ls)
+
+    del(Lp_all)
 
     blended = Ls[0]
     for i in xrange(1,K+1):

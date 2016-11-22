@@ -1,6 +1,6 @@
 from __future__ import print_function
 import cv2
-import sys
+import sys,os
 from matplotlib import pyplot as plt
 
 def variance_of_laplacian(img):
@@ -21,8 +21,12 @@ def blur_rejection(img, thresh=1):
 if __name__ == '__main__':
     text = []
     fm = []
-    for i in range(1,8):
-        img = cv2.imread("../testcases/" + str(i) + ".jpg")
+    img_folder = sys.argv[1]
+    img_files = sorted([os.path.join(img_folder,f) \
+                        for f in os.listdir(img_folder) \
+                        if os.path.isfile(os.path.join(img_folder,f))])
+    for f in img_files:
+        img = cv2.imread(f)
         text1,fm1 = blur_rejection(img)
         text.append(text1)
         fm.append(fm1)

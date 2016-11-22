@@ -5,7 +5,7 @@ from estimation import homography_ransac
 from blending import multiband_blend
 from numpy import linalg as lin
 import cv2
-
+# from matplotlib import pyplot as plt
 __all__ = ['get_connectivity_mat','merge_simple','merge_incremental']
 
 def get_connectivity_mat(imgs, features):
@@ -16,7 +16,7 @@ def get_connectivity_mat(imgs, features):
     '''
 
     MATCH_RATIO = 0.7
-    MIN_MATCHES = 600
+    MIN_MATCHES = 30
 
     N = len(imgs)
     matches_list = [[] for i in range(N)]
@@ -115,13 +115,17 @@ def merge_simple(imgs,connectivity_mat,scale,k=6):
 
     return merged_img,blended_img
 
-def merge_incremental(imgs, features, imgs_to_merge, scale, k_blend):
+def merge_incremental(imgs, features, imgs_to_merge, scale, k_blend, merge_scale):
+
+    MATCH_RATIO = 0.75
+    MIN_MATCHES = 100
+
     img = imgs.pop(0)
     features.pop(0)
     idx = range(1,len(imgs)+1)
 
     # Guessing the shape for merged image
-    Lx,Ly = img.shape[1]*2,img.shape[0]*2
+    Lx,Ly = int(img.shape[1]*merge_scale[1]),int(img.shape[0]*merge_scale[0])
     merged_img = np.zeros((Ly,Lx),dtype='uint8')
 
     # Add first img to merged_img
@@ -137,10 +141,10 @@ def merge_incremental(imgs, features, imgs_to_merge, scale, k_blend):
             img = imgs[i]
             kpi, desi = features[i]
 
-            matches = match_features(desm,desi, 0.67)
+            matches = match_features(desm,desi, MATCH_RATIO)
             print("Matches with img %d: %d" % (idx[i],len(matches)))
 
-            if len(matches) > 50:
+            if len(matches) > MIN_MATCHES:
                 print("Merging img %d" % idx[i])
                 # img3 = np.zeros(2)
                 # img3 = cv2.drawMatchesKnn(merged_img,kpm,img,kpi,matches,img3,flags=2)
@@ -167,7 +171,7 @@ def merge_incremental(imgs, features, imgs_to_merge, scale, k_blend):
                 break
 
     Ly,Lx = imgs_to_merge[0].shape
-    Ly,Lx = int(Ly*1.5),int(Lx*3)
+    Ly,Lx = int(Ly*merge_scale[1]),int(Lx*merge_scale[0])
     merged_img = np.zeros((Ly,Lx))
     warped_imgs = []
 
