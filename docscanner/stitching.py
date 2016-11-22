@@ -5,7 +5,7 @@ from estimation import homography_ransac
 from blending import multiband_blend
 from numpy import linalg as lin
 import cv2
-# from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 __all__ = ['get_connectivity_mat','merge_simple','merge_incremental']
 
 def get_connectivity_mat(imgs, features):
@@ -125,7 +125,7 @@ def merge_incremental(imgs, features, imgs_to_merge, scale, k_blend, merge_scale
     idx = range(1,len(imgs)+1)
 
     # Guessing the shape for merged image
-    Lx,Ly = int(img.shape[1]*merge_scale[1]),int(img.shape[0]*merge_scale[0])
+    Lx,Ly = int(img.shape[1]*merge_scale[0]),int(img.shape[0]*merge_scale[1])
     merged_img = np.zeros((Ly,Lx),dtype='uint8')
 
     # Add first img to merged_img
@@ -144,6 +144,10 @@ def merge_incremental(imgs, features, imgs_to_merge, scale, k_blend, merge_scale
             matches = match_features(desm,desi, MATCH_RATIO)
             print("Matches with img %d: %d" % (idx[i],len(matches)))
 
+            img3 = np.zeros(2)
+            img3 = cv2.drawMatchesKnn(merged_img,kpm,imgs[i],kpi,matches,img3,flags=2)
+            plt.imsave("output/match%d.png"%idx[i],img3,cmap='gray')
+
             if len(matches) > MIN_MATCHES:
                 print("Merging img %d" % idx[i])
                 # img3 = np.zeros(2)
@@ -158,6 +162,8 @@ def merge_incremental(imgs, features, imgs_to_merge, scale, k_blend, merge_scale
 
                 Hmi,_ = homography_ransac(Xi,Xm, 1000, 6)
                 img_warped = cv2.warpPerspective(img, Hmi, (Lx,Ly))
+
+                plt.imsave("output/warped_small%i.png"%idx[i],img_warped,cmap='gray')
 
                 update_region = np.logical_and(img_warped>0,merged_img==0)
                 merged_img[update_region] = img_warped[update_region]
@@ -181,7 +187,10 @@ def merge_incremental(imgs, features, imgs_to_merge, scale, k_blend, merge_scale
 
     sc_up = lin.inv(sc_down)
 
+    n = 0
+
     for H,img in zip(H_to_0,imgs_to_merge):
+        n+=1
         img_warped = cv2.warpPerspective(img, np.dot(np.dot(sc_up,H),sc_down), (Lx,Ly))
         common_region = np.logical_and(merged_img > 0, img_warped > 0)
 
@@ -194,6 +203,7 @@ def merge_incremental(imgs, features, imgs_to_merge, scale, k_blend, merge_scale
             g_warped = avg_merged/avg_warped
             img_warped = np.multiply(img_warped,g_warped)
 
+        plt.imsave("output/warped_full%d.png"%n,img_warped,cmap='gray'),plt.show()
         img_warped[common_region]=0
         warped_imgs.append(img_warped)
         merged_img = np.add(merged_img,img_warped)

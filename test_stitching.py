@@ -31,7 +31,7 @@ for img in imgs:
 features = [get_orb_features(img, 20000) for img in imgs_bw]
 
 # matches_list = get_connectivity_mat(imgs_bw, features)
-img_merged2 = merge_incremental(imgs_bw, features, imgs, SCALE, 3, (2,4))
+img_merged2 = merge_incremental(imgs_bw, features, imgs, SCALE, 3, (3,1.5))
 #img_merged,img_blended = merge_simple(imgs,matches_list,SCALE,3)
 # img_new= np.absolute(np.subtract(img_merged,img_blended))
 #plt.figure(),plt.imshow(img_merged,cmap='gray')

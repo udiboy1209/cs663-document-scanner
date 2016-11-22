@@ -2,3 +2,6 @@
 
 .buildozer/
 bin/
+
+*.aux
+*.log
